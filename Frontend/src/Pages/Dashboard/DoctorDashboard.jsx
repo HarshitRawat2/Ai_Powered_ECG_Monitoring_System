@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 export default function DoctorDashboard() {
   const [patients, setPatients] = useState([]); 
   const [requests, setRequests] = useState([]); 
+  const [activeReadingIndex, setActiveReadingIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   
   // Modal & Patient Detail States
@@ -43,35 +44,32 @@ const handleLogout = () => {
   }, [fetchDashboardData]);
 
   // Handle Fetching Keyed Patient Data
-  useEffect(() => {
-    if (selectedPatient) {
-      const fetchPatientVitals = async () => {
-        setIsDataLoading(true);
-        try {
-          // Endpoint: /readings/doctors
-          const res = await API.get('/readings/doctors');
-          
-          // Your JSON structure: res.data.data["4"].readings
-          // We look up the data using the selectedPatient's ID as the key
-          const patientEntry = res.data.data[selectedPatient.id];
-          
-          if (patientEntry && patientEntry.readings) {
-            setPatientReadings(patientEntry.readings);
-          } else {
-            setPatientReadings([]);
-          }
-        } catch (err) {
-          console.error("Error fetching patient readings:", err);
+useEffect(() => {
+  if (selectedPatient) {
+    const fetchPatientVitals = async () => {
+      setIsDataLoading(true);
+      try {
+        const res = await API.get('/readings/doctor');
+        
+        // Use the patient's ID (e.g., 13) to access the specific object key
+        const patientEntry = res.data.data[selectedPatient.id];
+        
+        if (patientEntry && patientEntry.readings && patientEntry.readings.length > 0) {
+          setPatientReadings(patientEntry.readings);
+          setActiveReadingIndex(0); 
+        } else {
           setPatientReadings([]);
-        } finally {
-          setIsDataLoading(false);
         }
-      };
-      fetchPatientVitals();
-    } else {
-      setPatientReadings([]);
-    }
-  }, [selectedPatient]);
+      } catch (err) {
+        console.error("Error fetching patient readings:", err);
+        setPatientReadings([]);
+      } finally {
+        setIsDataLoading(false);
+      }
+    };
+    fetchPatientVitals();
+  }
+}, [selectedPatient]);
 
   const updateRequestStatus = async (requestId, status) => {
     try {
@@ -214,62 +212,105 @@ const handleLogout = () => {
         </section>
       </div>
 
-      {/* --- PATIENT FILE MODAL --- */}
+    {/* --- PATIENT FILE MODAL --- */}
       {selectedPatient && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden relative animate-in zoom-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden relative animate-in zoom-in duration-200 flex flex-col max-h-[90vh]">
             
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
               <div className="flex items-center gap-4">
-                <div className="h-10 w-10 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold">
+                <div className="h-12 w-12 bg-blue-600 text-white rounded-xl flex items-center justify-center font-bold text-xl">
                   {selectedPatient.firstName[0]}
                 </div>
-                <h2 className="text-xl font-bold text-slate-900 capitalize">
-                  {selectedPatient.firstName} {selectedPatient.lastName}
-                </h2>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 capitalize">
+                    {selectedPatient.firstName} {selectedPatient.lastName}
+                  </h2>
+                  <p className="text-xs text-slate-400 font-medium">{selectedPatient.email}</p>
+                </div>
               </div>
-              <button onClick={() => setSelectedPatient(null)} className="p-2 text-slate-400 hover:bg-white hover:border-slate-200 border border-transparent rounded-full transition-all">
-                <X size={20} />
+              <button onClick={() => setSelectedPatient(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-all">
+                <X size={24} />
               </button>
             </div>
 
-            <div className="p-8">
-              {/* ECG Display */}
-              <div className="bg-slate-900 rounded-2xl p-6 mb-8 relative">
-                <h3 className="text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                  <Activity size={14} /> ECG Live Stream
-                </h3>
+            <div className="p-8 overflow-y-auto">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                {/* Left: ECG Chart & Analysis */}
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="bg-slate-900 rounded-2xl p-6 relative min-h-[300px]">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
+                        <Activity size={14} /> Waveform Analysis
+                      </h3>
+            
+                    </div>
 
-                {isDataLoading ? (
-                  <div className="h-48 flex items-center justify-center text-slate-500 italic">Processing patient data...</div>
-                ) : patientReadings.length > 0 ? (
-                  // Displaying the latest reading's data points
-                  <EcgChart dataPoints={patientReadings[0].dataPoints || []} />
-                ) : (
-                  <div className="h-48 flex flex-col items-center justify-center text-slate-600 bg-slate-800/40 rounded-xl border border-slate-700 border-dashed">
-                    <Zap size={20} className="mb-2 opacity-30" />
-                    <p className="text-sm">No recorded waveforms found.</p>
+                   {isDataLoading ? (
+  <div className="h-48 flex items-center justify-center text-slate-500 italic">
+    Loading waveform...
+  </div>
+) : patientReadings.length > 0 ? (
+  <EcgChart readingData={patientReadings[activeReadingIndex]} />
+) : (
+  <div className="h-48 flex flex-col items-center justify-center text-slate-600 bg-slate-800/40 rounded-xl border border-slate-700 border-dashed">
+    <p className="text-sm italic">No data points available for this patient.</p>
+  </div>
+)}
                   </div>
-                )}
-              </div>
 
-              {/* Patient Info Blocks */}
-              <div className="grid grid-cols-2 gap-4 mb-8">
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Email Contact</p>
-                  <p className="text-sm font-bold text-slate-800">{selectedPatient.email}</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Status</p>
+                      <p className={`text-sm font-bold ${patientReadings[activeReadingIndex]?.abnormalDetected ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {patientReadings[activeReadingIndex]?.abnormalDetected ? 'Abnormal Signal' : 'Healthy Rhythm'}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Recorded At</p>
+                      <p className="text-sm font-bold text-slate-800">
+                        {patientReadings[activeReadingIndex] ? new Date(patientReadings[activeReadingIndex].recordedAt).toLocaleString() : 'N/A'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Last Data Sync</p>
-                  <p className="text-sm font-bold text-slate-800">
-                    {patientReadings.length > 0 ? new Date(patientReadings[0].createdAt).toLocaleString() : 'Never'}
-                  </p>
-                </div>
-              </div>
 
-              <button className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-blue-700 transition-all">
-                Download Analysis Report
-              </button>
+                {/* Right: History Sidebar for Doctor */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <Clock size={16} className="text-blue-600" /> Reading History
+                  </h3>
+                  <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                    {patientReadings.map((reading, idx) => (
+                      <button
+                        key={reading._id}
+                        onClick={() => setActiveReadingIndex(idx)}
+                        className={`w-full text-left p-3 rounded-xl border transition-all ${
+                          activeReadingIndex === idx 
+                          ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500/10' 
+                          : 'border-slate-100 bg-white hover:border-slate-200'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[10px] font-bold text-slate-500">
+                            {new Date(reading.recordedAt).toLocaleDateString()}
+                          </span>
+                          <div className={`w-2 h-2 rounded-full ${reading.abnormalDetected ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                        </div>
+                        <p className="text-xs font-bold text-slate-800">
+                          {new Date(reading.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                  <button className="w-full mt-4 bg-slate-900 text-white font-bold py-3 rounded-xl text-xs hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
+                    <FileText size={14} /> Generate Report
+                  </button>
+                </div>
+
+              </div>
             </div>
           </div>
         </div>
