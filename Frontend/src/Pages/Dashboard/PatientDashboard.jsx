@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import API from '../../api/axiosInstance';
 import EcgChart from '../../Components/EcgChart';
-import { Activity, Heart, Clock, UserPlus, ShieldCheck, X, AlertCircle, CheckCircle2, Hourglass, LogOut } from 'lucide-react';
+import { Activity, Heart, Clock, UserPlus, ShieldCheck, X, AlertCircle, CheckCircle2, Hourglass, LogOut ,FileText, Send} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import UploadReading from './UploadReading';
 
@@ -92,6 +92,29 @@ export default function PatientDashboard() {
   };
 
   const sampleData = [0, 0.2, 0.5, 0.1, -0.2, 0.8, 0.1, 0.2, 0.5, 0];
+
+  const [reportDates, setReportDates] = useState({ from: '', to: '' });
+const [isSending, setIsSending] = useState(false);
+
+const handleGenerateReport = async () => {
+  if (!reportDates.from || !reportDates.to) {
+    showToast("Please select both dates", "error");
+    return;
+  }
+  
+  setIsSending(true);
+  try {
+    await API.post('/ecgreports/download', {
+      startDate: reportDates.from,
+      endDate: reportDates.to
+    });
+    showToast("Report sent to your email!", "success");
+  } catch (err) {
+    showToast(err.response?.data?.message || "Failed to send report", "error");
+  } finally {
+    setIsSending(false);
+  }
+};
 
   return (
     <div className="bg-slate-50 min-h-screen pb-12 text-left font-sans">
@@ -285,6 +308,79 @@ export default function PatientDashboard() {
           </div>
         </div>
       )}
+
+  <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/50 overflow-hidden relative group">
+  {/* Subtle Background Accent */}
+  <div className="absolute -top-24 -right-24 w-48 h-48 bg-blue-50 rounded-full blur-3xl group-hover:bg-blue-100 transition-colors duration-500" />
+  
+  <div className="relative">
+    <div className="flex items-center gap-4 mb-8">
+      <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-200 text-white">
+        <FileText size={24} />
+      </div>
+      <div>
+        <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Medical Report</h2>
+        <p className="text-xs text-slate-400 font-medium">Export diagnostic history to PDF</p>
+      </div>
+    </div>
+
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* From Date */}
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Analysis Start</label>
+          <div className="relative group/input">
+            <input 
+              type="date" 
+              className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 transition-all focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none"
+              onChange={(e) => setReportDates({ ...reportDates, from: e.target.value })}
+            />
+          </div>
+        </div>
+
+        {/* To Date */}
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Analysis End</label>
+          <div className="relative group/input">
+            <input 
+              type="date" 
+              className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 transition-all focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none"
+              onChange={(e) => setReportDates({ ...reportDates, to: e.target.value })}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Info Tag */}
+      <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-xl border border-amber-100">
+        <ShieldCheck className="text-amber-600" size={14} />
+        <p className="text-[10px] font-bold text-amber-700">Report will be sent to your registered Gmail address</p>
+      </div>
+      
+      <button
+        onClick={handleGenerateReport}
+        disabled={isSending}
+        className={`w-full py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all duration-300 transform active:scale-[0.98] ${
+          isSending 
+          ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+          : 'bg-slate-900 text-white hover:bg-blue-600 hover:shadow-2xl hover:shadow-blue-200'
+        }`}
+      >
+        {isSending ? (
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+            <span>Encrypting Data...</span>
+          </div>
+        ) : (
+          <>
+            <Send size={18} className="-rotate-45" />
+            <span>Generate PDF Report</span>
+          </>
+        )}
+      </button>
+    </div>
+  </div>
+</div>
 
       {/* History Slide-over Modal */}
       {isHistoryOpen && (
